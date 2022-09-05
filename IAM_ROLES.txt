@@ -1,0 +1,53 @@
+Permissions can be given using an IAM User and his/her keys or by giving an IAM Role to an EC2 instance.
+
+1.Permissions needed for reading objects or create Tags in the Source Account
+ec2:DescribeDhcpOptions
+ec2:CreateTags (Resource "arn:aws:ec2:*:<Source_Account_ID>:volume/*")
+ec2:DescribeInstances
+ec2:DescribeRouteTables
+ec2:DescribeSecurityGroups
+ec2:DescribeSecurityGroupRules
+ec2:DescribeSnapshots
+ec2:DescribeSubnets
+ec2:DescribeVolumes
+ec2:DescribeVpcs
+
+2.Permissions needed for the Destination Account
+ec2:AttachVolume
+ec2:CreateVolume
+ec2:CreateSecurityGroup
+ec2:CopySnapshots (Resource "arn:aws:ec2:*::snapshot/*")
+ec2:CreateSubnet
+ec2:CreateTags (Resource "arn:aws:ec2:*::snapshot/*")
+ec2:CreateTags (Resource "arn:aws:ec2:*::instance/*")
+ec2:CreateTags (Resource "arn:aws:ec2:*::security-group/*")
+ec2:CreateTags (Resource "arn:aws:ec2:*::subnet/*")
+ec2:CreateTags (Resource "arn:aws:ec2:*::volume/*")
+ec2:CreateTags (Resource "arn:aws:ec2:*::vpc/*")
+ec2:CreateVpc
+ec2:DeleteSubnet
+ec2:DeleteVpc
+ec2:DeregisterImage
+ec2:DescribeDhcpOptions
+ec2:DescribeImages
+ec2:DescribeSecurityGroups
+ec2:DescribeSnapshots
+ec2:DescribeSubnets
+ec2:DescribeVpcs
+ec2:RegisterImage
+ec2:RunInstances
+ec2:StartInstances
+ec2:StopInstances
+ec2:AuthorizeSecurityGroupIngress
+
+3.Permissions needed to register & deregister instance in Target group
+elasticloadbalancing:DeregisterTargets (Resource "arn:aws:elasticloadbalancing:*:357156346524:targetgroup/*/*")
+elasticloadbalancing:DescribeLoadBalancers
+elasticloadbalancing:DescribeTargetGroups
+elasticloadbalancing:DescribeTargetHealth
+elasticloadbalancing:RegisterTargets (Resource "arn:aws:elasticloadbalancing:*:357156346524:targetgroup/*/*")
+
+4.Permissions to change the instance type
+ec2:ModifyInstanceAttribute
+ec2:StartInstances
+ec2:StopInstances
