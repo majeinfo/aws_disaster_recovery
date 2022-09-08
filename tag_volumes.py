@@ -5,6 +5,7 @@ $ ./tag_volumes.py --profile name --region eu-west-1 --system-tag SYSDISK --volu
 This script must be launched by the Account that must be restored in another account.
 '''
 import logging
+import utils
 
 MAX_RESULTS = 200
 
@@ -93,27 +94,27 @@ def tag_volumes(client, system_tag, volume_tag):
         device = attachments[0]['Device']
         instance_name = _get_instance_from_id(volume_id, instance_id, instance)
         tags = [
-            {'Key': 'Instance', 'Value': instance_name},
-            {'Key': 'Device', 'Value': device},
+            {'Key': utils.TAG_INSTANCE, 'Value': instance_name},
+            {'Key': utils.TAG_DEVICE, 'Value': device},
         ]
 
         # Test if volume is a SYSDISK volume
         for tag in volume['Tags']:
             if tag['Key'] == system_tag:
                 logger.debug('This Volume is a System Volume')
-                tags.append({'Key': 'InstanceType', 'Value': instance['InstanceType']})
-                tags.append({'Key': 'Architecture', 'Value': instance['Architecture']})
-                tags.append({'Key': 'EnaSupport', 'Value': instance['EnaSupport']})
-                tags.append({'Key': 'AvailabilityZone', 'Value': instance['Placement']['AvailabilityZone']})
+                tags.append({'Key': utils.TAG_INSTANCE_TYPE, 'Value': instance['InstanceType']})
+                tags.append({'Key': utils.TAG_ARCHITECTURE, 'Value': instance['Architecture']})
+                tags.append({'Key': utils.TAG_ENA_SUPPORT, 'Value': instance['EnaSupport']})
+                tags.append({'Key': utils.TAG_AVAILABILITY_ZONE, 'Value': instance['Placement']['AvailabilityZone']})
 
                 if 'IamInstanceProfile' in instance:
                     iam_profile_arn = instance['IamInstanceProfile']['Arn']
                     iam_profile_id = instance['IamInstanceProfile']['Id']
-                    tags.append({'Key': 'IamProfileArn', 'Value': iam_profile_arn})
-                    tags.append({'Key': 'IamProfileId', 'Value': iam_profile_id})
+                    tags.append({'Key': utils.TAG_IAM_PROFILE_ARN, 'Value': iam_profile_arn})
+                    tags.append({'Key': utils.TAG_IAM_PROFILE_ID, 'Value': iam_profile_id})
 
                 security_groups = _linearize(instance['SecurityGroups'])
-                tags.append({'Key': 'SecurityGroups', 'Value': security_groups})
+                tags.append({'Key': utils.TAG_SECURITY_GROUPS, 'Value': security_groups})
                 break
 
         client.create_tags(Resources=[volume_id], Tags=tags)

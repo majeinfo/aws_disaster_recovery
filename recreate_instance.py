@@ -6,6 +6,8 @@ This script must be launched in the target Account
 '''
 import logging
 import time
+import utils
+from copy_security_groups import get_security_groups, SECURITY_GROUP_SRC_TAG
 
 MAX_RESULTS = 200
 RETRY_SECONDS = 5
@@ -86,12 +88,17 @@ def recreate_instance(client, account_id, instance_name, snapshots, recreate_ami
 
     snapshot = snapshots[instance_name]
 
-    is_sys_disk = _get_tag_value(snapshot, 'SYSDISK')
-    device_name = _get_tag_value(snapshot, 'Device')
-    instance_type = _get_tag_value(snapshot, 'InstanceType')
-    availability_zone = _get_tag_value(snapshot, 'AvailabilityZone')
-    ena_support = _get_tag_value(snapshot, 'EnaSupport') == "True"
-    architecture = _get_tag_value(snapshot, 'Architecture')
+    #is_sys_disk = _get_tag_value(snapshot, 'SYSDISK')
+    device_name = _get_tag_value(snapshot, utils.TAG_DEVICE)
+    instance_type = _get_tag_value(snapshot, utils.TAG_INSTANCE_TYPE)
+    availability_zone = _get_tag_value(snapshot, utils.TAG_AVAILABILITY_ZONE)
+    ena_support = _get_tag_value(snapshot, utils.TAG_ENA_SUPPORT) == "True"
+    architecture = _get_tag_value(snapshot, utils.TAG_ARCHITECTURE)
+    sec_groups = _get_tag_value(snapshot, utils.TAG_SECURITY_GROUPS)
+
+    # Find the matching security groups
+    dst_sec_groups = _compute_dst_security_groups(client, sec_groups, subnet_id)
+    logger.debug(f"New security groups={dst_sec_groups}")
 
     # Check if a new AMI must be created
     ami = client.describe_images(
@@ -131,15 +138,15 @@ def recreate_instance(client, account_id, instance_name, snapshots, recreate_ami
         logger.info(f"AMI {ami['ImageId']} already exists and must not be recreated")
 
     # Create an instance from the AMI
-    if subnet_id:   # needed for EC2-Classis
+    if subnet_id:   # needed for EC2-Classic
         instances = client.run_instances(
-            # TODO: BlockDeviceMappings (rend inutile la création des Volumes dans la fonction suivante)
+            # TODO: BlockDeviceMappings ?
             ImageId=ami['ImageId'],
             MinCount=1,
             MaxCount=1,
             InstanceType=instance_type,
             SubnetId=subnet_id,         # imply the AZ
-            SecurityGroups=[],          # TODO: to be filled in
+            SecurityGroups=dst_sec_groups,
             TagSpecifications=[
                 {'ResourceType': 'instance', 'Tags': [{'Key': 'Name', 'Value': instance_name}]}
             ]
@@ -149,25 +156,82 @@ def recreate_instance(client, account_id, instance_name, snapshots, recreate_ami
         region = instances['Instances'][0]['Placement']['AvailabilityZone'][:-1]
     else:
         instances = client.run_instances(
-            # TODO: BlockDeviceMappings (rend inutile la création des Volumes dans la fonction suivante)
+            # TODO: BlockDeviceMappings ?
             ImageId=ami['ImageId'],
             MinCount=1,
             MaxCount=1,
             InstanceType=instance_type,
-            Placement={'AvailabilityZone': region + availability_zone[-1]}, # TODO: the dest region must have enough AZ !
-            SecurityGroups=[],          # TODO: to be filled in
+            Placement={'AvailabilityZone': region + availability_zone[-1]}, # REQ: the dest region must have enough AZ !
+            SecurityGroups=dst_sec_groups,
             TagSpecifications=[
                 {'ResourceType': 'instance', 'Tags': [{'Key': 'Name', 'Value': instance_name}]}
             ]
         )
 
-    # TODO: il manque le nom de l'instance sur le disk système
-    # TODO: il manque les rôles et la conf réseau (private+public+EIP)
-    # TODO: pour créer une instance avec un rôle, il faut une permission IAM PassRole
+    # TODO: should add the instance name as the Name Tag of the system disk
+    # TODO: Role and network configuration are missing (private+public+EIP)
+    # TODO: To add a Role we need the IAM PassRole permission
     instance_id = instances['Instances'][0]['InstanceId']
     logger.info(f"Instance {instance_id} created")
 
     _recreate_volumes(client, instance_name, instance_id, snapshots, region + availability_zone[-1])
+
+
+def _compute_dst_security_groups(client, src_sec_groups, subnet_id):
+    # src_sec_groups = grp_name:grp_id:grp_name:grp_id:...
+    logger.debug(f"Must find matching security groups for {src_sec_groups}")
+    groups = src_sec_groups.split(':')
+
+    # Find the VPC matching the subnet id
+    response = client.describe_subnets(Filters=[{'Name': 'subnet-id', 'Values': [subnet_id]}])
+    vpc_id = response['Subnets'][0]['VpcId']
+
+    # Get the list of security groups for this VPC
+    filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}]
+    dst_sec_groups = get_security_groups(client, filters)
+    for grp in dst_sec_groups:
+        logger.debug(f"{grp['GroupId']}, {grp['GroupName']}, {grp['Tags'] if 'Tags' in grp else ''}")
+
+    # Loop on the grp name then loop on the grp id to find the new name
+    new_sec_groups = []
+    for grp_name in groups[::2]:
+        if grp_name == "": continue
+        # We must find the dst_sec_group tagged with this grp_name
+        logger.debug(f"grp_name={grp_name}")
+        found = False
+        for grp in dst_sec_groups:
+            if 'Tags' not in grp:
+                continue
+
+            for tag in grp['Tags']:
+                if tag['Key'] == SECURITY_GROUP_SRC_TAG and tag['Value'] == grp_name:
+                    new_sec_groups.append(grp['GroupId'])
+                    found = True
+                    break
+
+            if found: break
+
+        if not found:
+            logger.info(f"Could not find the matching security group for the original security group {grp_name}")
+
+    # for grp_id in groups[1::2]:
+    #     # We must find the dst_sec_group tagged with this grp_id
+    #     found = False
+    #     for grp in dst_sec_groups:
+    #         if 'Tags' not in grp:
+    #             continue
+    #
+    #         found = False
+    #         for tag in grp['Tags']:
+    #             if tag['Key'] == SECURITY_GROUP_SRC_TAG and tag['Value'] == grp_id:
+    #                 dst_sec_groups.append(grp['GroupId'])
+    #                 found = True
+    #                 break
+    #
+    #     if not found:
+    #         logger.info(f"Could not find the matching security group for the original security group {grp_id}")
+
+    return new_sec_groups
 
 
 def _recreate_volumes(ec2_client, instance_name, instance_id, snapshots, az):
@@ -249,7 +313,7 @@ if __name__ == '__main__':
     import argparse
     import boto3
 
-    usage = "%(prog)s --instance-name name [--profile profile_name] --region region [-s|--subnet-id subnet] [-a|--recreate-ami] [-v|--verbose]"
+    usage = "%(prog)s --instance-name name [--profile profile_name] --region region -s|--subnet-id subnet [-a|--recreate-ami] [-v|--verbose]"
 
     parser = argparse.ArgumentParser(
         description="Recreate an instance from the snapshoted volumes",
@@ -259,7 +323,7 @@ if __name__ == '__main__':
     parser.add_argument("-r", "--region", nargs='?', help="Name of the Region where are the snapshots and the instances", required=True)
     parser.add_argument("-i", "--instance-name", nargs='?', help="Name of the Instance to recreate", required=True)
     parser.add_argument("-a", "--recreate-ami", action="store_true", help="Recreate the AMI if it already exists", default=False)
-    parser.add_argument("-s", "--subnet-id", nargs='?', help="Subnet ID", default=None)
+    parser.add_argument("-s", "--subnet-id", nargs='?', help="Subnet ID", required=True) #default=None)
     parser.add_argument("-v", "--verbose", action="store_true", help="Debug mode", default=False)
     opts = parser.parse_args()
 
