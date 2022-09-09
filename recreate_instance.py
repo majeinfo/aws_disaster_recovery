@@ -145,8 +145,8 @@ def recreate_instance(client, account_id, instance_name, snapshots, recreate_ami
             MinCount=1,
             MaxCount=1,
             InstanceType=instance_type,
-            SubnetId=subnet_id,         # imply the AZ
-            SecurityGroups=dst_sec_groups,
+            SecurityGroupIds=dst_sec_groups,
+            SubnetId=subnet_id, 
             TagSpecifications=[
                 {'ResourceType': 'instance', 'Tags': [{'Key': 'Name', 'Value': instance_name}]}
             ]
