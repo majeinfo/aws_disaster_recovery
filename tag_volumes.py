@@ -104,7 +104,7 @@ def tag_volumes(client, system_tag, volume_tag):
                 logger.debug('This Volume is a System Volume')
                 tags.append({'Key': utils.TAG_INSTANCE_TYPE, 'Value': instance['InstanceType']})
                 tags.append({'Key': utils.TAG_ARCHITECTURE, 'Value': instance['Architecture']})
-                tags.append({'Key': utils.TAG_ENA_SUPPORT, 'Value': instance['EnaSupport']})
+                tags.append({'Key': utils.TAG_ENA_SUPPORT, 'Value': str(instance['EnaSupport'])})
                 tags.append({'Key': utils.TAG_AVAILABILITY_ZONE, 'Value': instance['Placement']['AvailabilityZone']})
 
                 if 'IamInstanceProfile' in instance:
