@@ -11,6 +11,12 @@ ec2:DescribeSnapshots
 ec2:DescribeSubnets
 ec2:DescribeVolumes
 ec2:DescribeVpcs
+iam:GetPolicyVersion
+iam:ListAttachedRolePolicies
+iam:ListPolicies
+iam:ListPolicyTags
+iam:ListRoles
+iam:ListRoleTags
 
 2.Permissions needed for the Destination Account
 ec2:AttachVolume
@@ -47,7 +53,18 @@ elasticloadbalancing:DescribeTargetGroups
 elasticloadbalancing:DescribeTargetHealth
 elasticloadbalancing:RegisterTargets (Resource "arn:aws:elasticloadbalancing:*:357156346524:targetgroup/*/*")
 
-4.Permissions to change the instance type
+4.Permissions needed to change the instance type
 ec2:ModifyInstanceAttribute
 ec2:StartInstances
 ec2:StopInstances
+
+5.Permissions needed to copy and recreate IAM objects
+iam:AttachRolePolicy
+iam:CreatePolicy
+iam:DeletePolicy
+iam:DeleteRole
+iam:DetachRolePolicy
+iam:ListAttachedRolePolicies
+iam:ListPolicies
+iam:ListRoles
+
